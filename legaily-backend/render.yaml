@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: fastapi-pdf-processor
+    env: python
+    region: oregon
+    plan: starter
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "uvicorn main:app --host 0.0.0.0 --port 8000"
+    envVars:
+      - key: OPENAI_API_KEY
+        value: <sk-proj-AeDqnx5rM0jGomB9L7RcT3BlbkFJ4xg3ajmi6zuIamGsMwQR>  

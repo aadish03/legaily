@@ -3,13 +3,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from PyPDF2 import PdfReader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain_community.embeddings import OpenAIEmbeddings
+from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_community.vectorstores import FAISS
-from langchain.chains.question_answering import load_qa_chain
-from langchain.llms import OpenAI
 from deep_translator import GoogleTranslator
 from sentence_transformers import SentenceTransformer, util
 from pydantic import BaseModel
+import google.generativeai as genai
 import os
 import io
 import json
@@ -26,13 +25,15 @@ app = FastAPI()
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Ensure your OpenAI API key is set in the environment
-openai_api_key = "sk-proj-AeDqnx5rM0jGomB9L7RcT3BlbkFJ4xg3ajmi6zuIamGsMwQR"
-if not openai_api_key:
-    logger.error("OpenAI API key not found in environment variables")
-    raise ValueError("OpenAI API key not found in environment variables")
+# Ensure your Google API key is set in the environment
+google_api_key = "AIzaSyAjU-G6ZALGIx3i5npDVr7PdBX7_Uxdw70"
+if not google_api_key:
+    logger.error("Google API key not found in environment variables")
+    raise ValueError("Google API key not found in environment variables")
 
-os.environ["OPENAI_API_KEY"] = openai_api_key
+# Configure the Gemini model
+genai.configure(api_key=google_api_key)
+model = genai.GenerativeModel('gemini-pro')
 
 # Add CORS middleware
 app.add_middleware(
@@ -120,15 +121,17 @@ async def process_pdf(file: UploadFile = File(...), query: str = Form(...), tran
         texts = text_splitter.split_text(raw_text)
 
         # Generate embeddings and perform similarity search
-        embeddings = OpenAIEmbeddings()
+        embeddings = HuggingFaceEmbeddings()
         document_search = FAISS.from_texts(texts, embeddings)
         docs = document_search.similarity_search(query)
         
-        # Load QA chain and get answer
-        chain = load_qa_chain(OpenAI(), chain_type="stuff")
+        # Prepare context and prompt for Gemini
         context = "You are a lawyer and provide assistance with legal questions."
-        prompt = f"Context: {context}\n\nQuestion: {query}\n\nPlease provide a detailed answer based on the given documents."
-        answer = chain.run(input_documents=docs, question=prompt)
+        prompt = f"Context: {context}\n\nDocument content: {' '.join([doc.page_content for doc in docs])}\n\nQuestion: {query}\n\nPlease provide a detailed answer based on the given documents."
+
+        # Generate response using Gemini
+        response = model.generate_content(prompt)
+        answer = response.text
 
         # Handle translation if requested
         if translation_language:

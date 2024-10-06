@@ -17,6 +17,7 @@ import nltk
 from nltk.corpus import stopwords
 from nltk.tokenize import word_tokenize
 from nltk.stem import WordNetLemmatizer
+from typing import List
 
 # Initialize FastAPI app
 app = FastAPI()
@@ -147,6 +148,83 @@ async def process_pdf(file: UploadFile = File(...), query: str = Form(...), tran
     except Exception as e:
         logger.error(f"Error processing request: {e}")
         raise HTTPException(status_code=500, detail="Internal Server Error")
+
+class ChatbotRequest(BaseModel):
+    user_message: str
+
+class ChatbotResponse(BaseModel):
+    lawyer_response: str
+    potential_charges: List[str]
+    rights: List[str]
+    next_steps: List[str]
+
+@app.post("/chatbot", response_model=ChatbotResponse)
+async def chatbot(request: ChatbotRequest):
+    user_message = request.user_message
+
+    # Prepare context and prompt for Gemini
+    context = """You are an AI lawyer assistant. Provide legal advice, potential charges, 
+    rights, and next steps based on the user's situation. Be concise and factual."""
+    
+    prompt = f"""Context: {context}
+
+User situation: {user_message}
+
+Please provide:
+1. A brief lawyer's response
+2. A list of potential charges (if applicable)
+3. A list of relevant rights
+4. A list of recommended next steps
+
+Format your response as follows:
+Lawyer's response: [Your response here]
+Potential charges:
+- [Charge 1]
+- [Charge 2]
+Relevant rights:
+- [Right 1]
+- [Right 2]
+Next steps:
+- [Step 1]
+- [Step 2]
+"""
+
+    # Generate response using Gemini
+    response = model.generate_content(prompt)
+    answer = response.text
+
+    # Parse the response
+    lawyer_response = ""
+    potential_charges = []
+    rights = []
+    next_steps = []
+
+    current_section = None
+    for line in answer.split('\n'):
+        line = line.strip()
+        if line.startswith("Lawyer's response:"):
+            current_section = "lawyer_response"
+            lawyer_response = line.replace("Lawyer's response:", "").strip()
+        elif line.startswith("Potential charges:"):
+            current_section = "potential_charges"
+        elif line.startswith("Relevant rights:"):
+            current_section = "rights"
+        elif line.startswith("Next steps:"):
+            current_section = "next_steps"
+        elif line.startswith("- "):
+            if current_section == "potential_charges":
+                potential_charges.append(line.strip("- "))
+            elif current_section == "rights":
+                rights.append(line.strip("- "))
+            elif current_section == "next_steps":
+                next_steps.append(line.strip("- "))
+
+    return ChatbotResponse(
+        lawyer_response=lawyer_response,
+        potential_charges=potential_charges,
+        rights=rights,
+        next_steps=next_steps
+    )
 
 if __name__ == "__main__":
     import uvicorn

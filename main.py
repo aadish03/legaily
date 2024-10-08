@@ -21,6 +21,8 @@ from nltk.stem import WordNetLemmatizer
 from pydantic import BaseModel
 from PyPDF2 import PdfReader
 from sentence_transformers import SentenceTransformer, util
+import cohere
+from langchain_community.llms import Cohere
 
 # Initialize FastAPI app
 app = FastAPI()
@@ -34,6 +36,15 @@ google_api_key = "AIzaSyAjU-G6ZALGIx3i5npDVr7PdBX7_Uxdw70"
 if not google_api_key:
     logger.error("Google API key not found in environment variables")
     raise ValueError("Google API key not found in environment variables")
+
+# Initialize Cohere client
+cohere_api_key = "lM3tDW2rDBFpwslHmzGaDbeEhVjpRDp1SnzlzhzT"
+if not cohere_api_key:
+    logger.error("Cohere API key not found in environment variables")
+    raise ValueError("Cohere API key not found in environment variables")
+
+cohere_client = cohere.Client(cohere_api_key)
+
 
 # Configure the Gemini model
 genai.configure(api_key=google_api_key)
@@ -107,7 +118,7 @@ async def ask(query: QueryModel):
 @app.post("/process_pdf/")
 async def process_pdf(file: UploadFile = File(...), query: str = Form(...), translation_language: str = Form(None)):
     """
-    Endpoint to process a PDF file, extract text, and answer a query based on the content.
+    Endpoint to process a PDF file, extract text, chunk it, and answer a query based on the content using Cohere LLM.
     Optionally translates the answer to the specified language.
     """
     try:
@@ -123,20 +134,35 @@ async def process_pdf(file: UploadFile = File(...), query: str = Form(...), tran
             chunk_overlap=200,
             length_function=len
         )
-        texts = text_splitter.split_text(raw_text)
-
-        # Generate embeddings and perform similarity search
-        embeddings = HuggingFaceEmbeddings()
-        document_search = FAISS.from_texts(texts, embeddings)
-        docs = document_search.similarity_search(query)
+        chunks = text_splitter.split_text(raw_text)
         
-        # Prepare context and prompt for Gemini
-        context = "You are a lawyer and provide assistance with legal questions."
-        prompt = f"Context: {context}\n\nDocument content: {' '.join([doc.page_content for doc in docs])}\n\nQuestion: {query}\n\nPlease provide a detailed answer based on the given documents."
+        # Combine chunks, limiting to approximately 10,000 characters
+        combined_chunks = ""
+        for chunk in chunks:
+            if len(combined_chunks) + len(chunk) > 10000:
+                break
+            combined_chunks += chunk + " "
+        
+        # Prepare prompt for Cohere
+        prompt = f"""You are a lawyer assistant. Please answer the following question based on the given document content.
 
-        # Generate response using Gemini
-        response = model.generate_content(prompt)
-        answer = response.text
+Document content: {combined_chunks.strip()}
+
+Question: {query}
+
+Please provide a detailed answer based on the given document."""
+
+        # Generate response using Cohere
+        response = cohere_client.generate(
+            model='command',
+            prompt=prompt,
+            max_tokens=500,
+            temperature=0.7,
+            k=0,
+            stop_sequences=[],
+            return_likelihoods='NONE'
+        )
+        answer = response.generations[0].text
 
         # Handle translation if requested
         if translation_language:

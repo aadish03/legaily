@@ -1,23 +1,26 @@
-from fastapi import FastAPI, File, UploadFile, Form, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
-from PyPDF2 import PdfReader
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain_community.embeddings import HuggingFaceEmbeddings
-from langchain_community.vectorstores import FAISS
-from deep_translator import GoogleTranslator
-from sentence_transformers import SentenceTransformer, util
-from pydantic import BaseModel
-import google.generativeai as genai
-import os
+# Standard library imports
 import io
 import json
 import logging
+import os
+from typing import List
+
+# Third-party imports
+from deep_translator import GoogleTranslator
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+import google.generativeai as genai
+from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain_community.embeddings import HuggingFaceEmbeddings
+from langchain_community.vectorstores import FAISS
 import nltk
 from nltk.corpus import stopwords
 from nltk.tokenize import word_tokenize
 from nltk.stem import WordNetLemmatizer
-from typing import List
+from pydantic import BaseModel
+from PyPDF2 import PdfReader
+from sentence_transformers import SentenceTransformer, util
 
 # Initialize FastAPI app
 app = FastAPI()
@@ -39,7 +42,7 @@ model = genai.GenerativeModel('gemini-pro')
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Adjust this to match your frontend's URL in production
+    allow_origins=["*"],  
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -65,12 +68,15 @@ cases = data['cases']
 case_texts = [f"{case['case_title']} {case['description']}" for case in cases]
 case_embeddings = sentence_model.encode(case_texts, convert_to_tensor=True)
 
-# NLP preprocessing function
-def preprocess_text(text):
-    tokens = word_tokenize(text.lower())  # Tokenization and lowercasing
-    tokens = [word for word in tokens if word.isalnum()]  # Remove non-alphanumeric tokens
-    tokens = [word for word in tokens if word not in stop_words]  # Remove stopwords
-    tokens = [lemmatizer.lemmatize(word) for word in tokens]  # Lemmatization
+def preprocess_text(text: str) -> str:
+    """
+    Preprocess the input text by tokenizing, lowercasing, removing non-alphanumeric tokens,
+    removing stopwords, and lemmatizing.
+    """
+    tokens = word_tokenize(text.lower())
+    tokens = [word for word in tokens if word.isalnum()]
+    tokens = [word for word in tokens if word not in stop_words]
+    tokens = [lemmatizer.lemmatize(word) for word in tokens]
     return ' '.join(tokens)
 
 # Define the request model for querying cases
@@ -79,14 +85,14 @@ class QueryModel(BaseModel):
 
 @app.post("/ask")
 async def ask(query: QueryModel):
+    """
+    Endpoint to find similar cases based on the user's query.
+    """
     user_input = query.query
     if not user_input:
         raise HTTPException(status_code=400, detail="No query provided")
 
-    # Preprocess the user input
     preprocessed_input = preprocess_text(user_input)
-
-    # Generate embedding for the user's query
     user_embedding = sentence_model.encode(preprocessed_input, convert_to_tensor=True)
 
     # Calculate similarity between user input and case embeddings
@@ -100,17 +106,15 @@ async def ask(query: QueryModel):
 
 @app.post("/process_pdf/")
 async def process_pdf(file: UploadFile = File(...), query: str = Form(...), translation_language: str = Form(None)):
+    """
+    Endpoint to process a PDF file, extract text, and answer a query based on the content.
+    Optionally translates the answer to the specified language.
+    """
     try:
-        # Read the uploaded file
+        # Read the uploaded file and extract text
         contents = await file.read()
         pdf_reader = PdfReader(io.BytesIO(contents))
-        
-        # Extract text from the PDF
-        raw_text = ''
-        for page in pdf_reader.pages:
-            text = page.extract_text()
-            if text:
-                raw_text += text
+        raw_text = ' '.join(page.extract_text() or '' for page in pdf_reader.pages)
         
         # Split text into chunks
         text_splitter = RecursiveCharacterTextSplitter(
@@ -160,6 +164,10 @@ class ChatbotResponse(BaseModel):
 
 @app.post("/chatbot", response_model=ChatbotResponse)
 async def chatbot(request: ChatbotRequest):
+    """
+    Endpoint for the AI lawyer chatbot. Provides legal advice, potential charges,
+    rights, and next steps based on the user's situation.
+    """
     user_message = request.user_message
 
     # Prepare context and prompt for Gemini

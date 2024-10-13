@@ -32,13 +32,13 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Ensure your Google API key is set in the environment
-google_api_key = "AIzaSyAjU-G6ZALGIx3i5npDVr7PdBX7_Uxdw70"
+google_api_key = ""
 if not google_api_key:
     logger.error("Google API key not found in environment variables")
     raise ValueError("Google API key not found in environment variables")
 
 # Initialize Cohere client
-cohere_api_key = "lM3tDW2rDBFpwslHmzGaDbeEhVjpRDp1SnzlzhzT"
+cohere_api_key = ""
 if not cohere_api_key:
     logger.error("Cohere API key not found in environment variables")
     raise ValueError("Cohere API key not found in environment variables")

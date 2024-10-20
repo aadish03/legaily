@@ -31,20 +31,19 @@ app = FastAPI()
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Ensure your Google API key is set in the environment
-google_api_key = ""
+# Fetch Google API key from environment variable
+google_api_key = os.getenv("GOOGLE_API_KEY")
 if not google_api_key:
     logger.error("Google API key not found in environment variables")
     raise ValueError("Google API key not found in environment variables")
 
-# Initialize Cohere client
-cohere_api_key = ""
+# Fetch Cohere API key from environment variable
+cohere_api_key = os.getenv("COHERE_API_KEY")
 if not cohere_api_key:
     logger.error("Cohere API key not found in environment variables")
     raise ValueError("Cohere API key not found in environment variables")
 
 cohere_client = cohere.Client(cohere_api_key)
-
 
 # Configure the Gemini model
 genai.configure(api_key=google_api_key)

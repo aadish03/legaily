@@ -259,6 +259,13 @@ Next steps:
         next_steps=next_steps
     )
 
+@app.get("/hello")
+async def hello():
+    """
+    A simple endpoint that returns a greeting message.
+    """
+    return {"message": "Hello from backend!"}
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8080)

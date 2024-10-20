@@ -32,13 +32,13 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Fetch Google API key from environment variable
-google_api_key = os.getenv("GOOGLE_API_KEY")
+google_api_key = "AIzaSyAjU-G6ZALGIx3i5npDVr7PdBX7_Uxdw70"
 if not google_api_key:
     logger.error("Google API key not found in environment variables")
     raise ValueError("Google API key not found in environment variables")
 
 # Fetch Cohere API key from environment variable
-cohere_api_key = os.getenv("COHERE_API_KEY")
+cohere_api_key = "lM3tDW2rDBFpwslHmzGaDbeEhVjpRDp1SnzlzhzT"
 if not cohere_api_key:
     logger.error("Cohere API key not found in environment variables")
     raise ValueError("Cohere API key not found in environment variables")
